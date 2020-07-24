@@ -11,7 +11,7 @@ Flags :
  Note: None of flags is empty
  
  To run excute following command in CLI: 
-            go run main.go -id='give value' -key='give value' -ip='give value' -hash='give value'
+            github.com/StreamSpace/New-Postgres -id='give value' -key='give value' -ip='give value' -hash='give value'
  output:
  {
  	"downloadindex": int64,
@@ -21,5 +21,5 @@ Flags :
  	"hash": 'hash',
  	"timestamp": "2020-07-24T09:29:18.167811Z"
  }
- ```
+```
 
