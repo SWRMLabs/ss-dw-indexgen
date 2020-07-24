@@ -21,7 +21,7 @@ func main() {
 	} else {
 		err := pg.GenerateIndex(*projectid, *publickey, *ip, *hashvalue)
 		if err != nil {
-			log.Debug(err)
+			log.Error("Message",err)
 		}
 	}
 }
