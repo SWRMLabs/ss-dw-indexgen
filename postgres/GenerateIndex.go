@@ -39,38 +39,49 @@ func newConfig(projectid string, key string, ip string, hashvalue string) *inser
 	}
 }
 
-func NewPostgres(projectid string, key string, ip string, hashvalue string) {
+func GenerateIndex(projectid string, key string, ip string, hashvalue string) error {
 	jsonfile, err := os.Open("url-store.json")
+	if err != nil {
+		log.Errorf("Unable to open json file %s", err.Error())
+		return err
+	}
 	url, err := ioutil.ReadAll(jsonfile)
+	if err != nil {
+		log.Errorf("Unable to read data from json file %s", err.Error())
+		return err
+	}
 	var str map[string]string
 	err = json.Unmarshal(url, &str)
 	if err != nil {
 		log.Errorf("Failed to Unmarshal url %s", err.Error())
+		return err
 	}
 	db, err := sql.Open("postgres", str["url"])
 	if err != nil {
 		log.Errorf("Unable to connect %s", err.Error())
+		return err
 	}
 	defer db.Close()
-	if projectid == "" || key == "" || ip == "" || hashvalue == "" {
-		log.Errorf("Flags must not be empty")
-	} else {
-		insertdata := newConfig(projectid, key, ip, hashvalue)
-		timestamp := time.Now().Unix()
-		bcn, err := getBCN(timestamp, db)
-		if err != nil {
-			log.Error("Unable to get bcn %s", err.Error())
-		}
-		err = createTable(db, bcn)
-		if err != nil {
-			log.Errorf("Unable to create table %s", err.Error())
-		}
-		jsondata, err := insertion(db, bcn, insertdata)
-		if err != nil {
-			log.Errorf("Unable to insert data %s", err.Error())
-		}
-		fmt.Println(jsondata)
+
+	insertdata := newConfig(projectid, key, ip, hashvalue)
+	timestamp := time.Now().Unix()
+	bcn, err := getBCN(timestamp, db)
+	if err != nil {
+		log.Error("Unable to get bcn %s", err.Error())
+		return err
 	}
+	err = createTable(db, bcn)
+	if err != nil {
+		log.Errorf("Unable to create table %s", err.Error())
+		return err
+	}
+	jsondata, err := insertion(db, bcn, insertdata)
+	if err != nil {
+		log.Errorf("Unable to insert data %s", err.Error())
+		return err
+	}
+	fmt.Println(jsondata)
+	return nil
 }
 
 func getBCN(timestamp int64, db *sql.DB) (int64, error) {
@@ -91,7 +102,7 @@ func getBCN(timestamp int64, db *sql.DB) (int64, error) {
 
 func createTable(db *sql.DB, bcn int64) error {
 	tablename := fmt.Sprintf("downloads_requests_%#v", bcn)
-	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s
+	query := fmt.Sprintf(`create table if not exists %s
 	(downloadindex serial,
 	 projectid varchar(50),
 	 publickey varchar(200),
@@ -107,7 +118,7 @@ func createTable(db *sql.DB, bcn int64) error {
 
 func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (string, error) {
 	tablename := fmt.Sprintf("downloads_requests_%#v", bcn)
-	query := fmt.Sprintf(`INSERT INTO %s (projectId,publicKey,ip,hash)VALUES(%s,%s,%s,%s) RETURNING downloadindex`,
+	query := fmt.Sprintf(`insert into %s (projectId,publicKey,ip,hash)VALUES(%s,%s,%s,%s) returning downloadindex`,
 		tablename, insertdata.Project, insertdata.Key, insertdata.Ip, insertdata.Hash)
 	var id string
 	err := db.QueryRow(query).Scan(&id)
@@ -131,6 +142,10 @@ func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (string, error) {
 			return "", nil
 		}
 		js, err = json.MarshalIndent(result, " ", "\t")
+		if err != nil {
+			log.Errorf("Unable to indent marshal %s", err.Error())
+			return "", err
+		}
 	}
 	return string(js), nil
 }
