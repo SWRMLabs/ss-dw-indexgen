@@ -52,26 +52,25 @@ func NewPostgres(projectid string, key string, ip string, hashvalue string) {
 		log.Errorf("Unable to connect %s", err.Error())
 	}
 	defer db.Close()
-	if err = db.Ping(); err == nil {
-		log.Infof("Database successfully connected")
+	if projectid == "" || key == "" || ip == "" || hashvalue == "" {
+		log.Errorf("Flags must not be empty")
+	} else {
+		insertdata := newConfig(projectid, key, ip, hashvalue)
+		timestamp := time.Now().Unix()
+		bcn, err := getBCN(timestamp, db)
+		if err != nil {
+			log.Error("Unable to get bcn %s", err.Error())
+		}
+		err = createTable(db, bcn)
+		if err != nil {
+			log.Errorf("Unable to create table %s", err.Error())
+		}
+		jsondata, err := insertion(db, bcn, insertdata)
+		if err != nil {
+			log.Errorf("Unable to insert data %s", err.Error())
+		}
+		fmt.Println(jsondata)
 	}
-
-	insertdata := newConfig(projectid, key, ip, hashvalue)
-
-	timestamp := time.Now().Unix()
-	bcn, err := getBCN(timestamp, db)
-	if err != nil {
-		log.Error("Unable to get bcn %s", err.Error())
-	}
-	err = createTable(db, bcn)
-	if err != nil {
-		log.Errorf("Unable to create table %s", err.Error())
-	}
-	jsondata, err := insertion(db, bcn, insertdata)
-	if err != nil {
-		log.Errorf("Unable to insert data %s", err.Error())
-	}
-	fmt.Println(jsondata)
 }
 
 func getBCN(timestamp int64, db *sql.DB) (int64, error) {
@@ -87,7 +86,6 @@ func getBCN(timestamp int64, db *sql.DB) (int64, error) {
 			return 0, err
 		}
 	}
-	log.Infof("Selected query excuted successfully")
 	return bcn, nil
 }
 
@@ -104,7 +102,6 @@ func createTable(db *sql.DB, bcn int64) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Table is created successfully")
 	return nil
 }
 
