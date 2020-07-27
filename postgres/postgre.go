@@ -90,6 +90,7 @@ func getBCN(timestamp int64, db *sql.DB) (int64, error) {
 		log.Errorf("Select query unable to excute %s", err.Error())
 		return 0, err
 	}
+	defer rows.Close()
 	var bcn int64
 	for rows.Next() {
 		err := rows.Scan(&bcn)
@@ -111,6 +112,7 @@ func createTable(db *sql.DB, bcn int64) error {
 	 timestamp timestamp default current_timestamp)`, tablename)
 	_, err := db.Query(query)
 	if err != nil {
+		log.Errorf("Unbale to create table %s", err.Error())
 		return err
 	}
 	return nil
@@ -133,6 +135,7 @@ func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (string, error) {
 		log.Error("Data retrival from select is failed %s", err.Error())
 		return "", err
 	}
+	defer rows.Close()
 	var result extract
 	var js []byte
 	for rows.Next() {
