@@ -108,7 +108,7 @@ func createTable(db *sql.DB, bcn int64) error {
 	(downloadindex serial,
 	 projectid varchar(50),
 	 publickey varchar(200),
-	 ip varchar(20),
+	 ip varchar(45),
 	 hash varchar(200),
 	 timestamp timestamp default current_timestamp)`, tablename)
 	_, err := db.Query(query)
