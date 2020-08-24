@@ -95,7 +95,7 @@ func getBCN(timestamp int64, db *sql.DB) (int64, error) {
 	for rows.Next() {
 		err := rows.Scan(&bcn)
 		if err != nil {
-			log.Errorf("Scan of bcn is failed %s",err.Error())
+			log.Errorf("Scan of bcn is failed %s", err.Error())
 			return 0, err
 		}
 	}
@@ -121,10 +121,9 @@ func createTable(db *sql.DB, bcn int64) error {
 
 func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (string, error) {
 	tablename := fmt.Sprintf("downloads_requests_%#v", bcn)
-	query := fmt.Sprintf(`insert into %s (projectId,publicKey,ip,hash)VALUES(%s,%s,%s,%s) returning downloadindex`,
-		tablename, insertdata.Project, insertdata.Key, insertdata.Ip, insertdata.Hash)
+	query := fmt.Sprintf(`insert into %s (projectId,publicKey,ip,hash)VALUES($1,$2,$3,$4) returning downloadindex`, tablename)
 	var id string
-	err := db.QueryRow(query).Scan(&id)
+	err := db.QueryRow(query, insertdata.Project, insertdata.Key, insertdata.Ip, insertdata.Hash).Scan(&id)
 	if err != nil {
 		log.Errorf("Unable to excute insert query %s", err.Error())
 		return "", err
