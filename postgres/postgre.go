@@ -95,7 +95,7 @@ func getBCN(timestamp int64, db *sql.DB) (int64, error) {
 	for rows.Next() {
 		err := rows.Scan(&bcn)
 		if err != nil {
-			log.Errorf("Scan of bcn is failed %s", err.Error())
+			log.Errorf("Failed to scan BCN %s", err.Error())
 			return 0, err
 		}
 	}
