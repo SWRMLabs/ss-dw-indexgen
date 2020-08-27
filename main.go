@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 
-	pg "github.com/StreamSpace/New-Postgres/postgres"
+	pg "github.com/StreamSpace/ss-dw-indexgen/postgres"
 	logger "github.com/ipfs/go-log/v2"
 )
 

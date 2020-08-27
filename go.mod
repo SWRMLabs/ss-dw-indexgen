@@ -1,4 +1,4 @@
-module github.com/StreamSpace/New-Postgres
+module github.com/StreamSpace/ss-dw-indexgen
 
 go 1.14
 
