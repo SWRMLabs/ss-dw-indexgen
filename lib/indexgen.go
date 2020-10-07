@@ -6,14 +6,14 @@ import (
 	"sync"
 )
 
-type indexGenerator struct {
+type IndexGenerator struct {
 	lk    sync.Mutex
 	pgUrl string
 	db    *sql.DB
 }
 
-func NewIndexGenerator(pgUrl string) (*indexGenerator, error) {
-	id := &indexGenerator{
+func NewIndexGenerator(pgUrl string) (*IndexGenerator, error) {
+	id := &IndexGenerator{
 		pgUrl: pgUrl,
 	}
 	_, err := id.open()
@@ -23,7 +23,7 @@ func NewIndexGenerator(pgUrl string) (*indexGenerator, error) {
 	return id, nil
 }
 
-func (i *indexGenerator) open() (*sql.DB, error) {
+func (i *IndexGenerator) open() (*sql.DB, error) {
 	i.lk.Lock()
 	defer i.lk.Unlock()
 
@@ -42,7 +42,7 @@ func (i *indexGenerator) open() (*sql.DB, error) {
 	return i.db, nil
 }
 
-func (i *indexGenerator) Generate(
+func (i *IndexGenerator) Generate(
 	projectid string,
 	key string,
 	ip string,
@@ -55,7 +55,7 @@ func (i *indexGenerator) Generate(
 	return pg.GenerateIndex(dbp, projectid, key, ip, hashvalue)
 }
 
-func (i *indexGenerator) Close() error {
+func (i *IndexGenerator) Close() error {
 	i.lk.Lock()
 	defer i.lk.Unlock()
 
