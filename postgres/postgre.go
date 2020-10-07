@@ -19,7 +19,7 @@ type insertdata struct {
 	Hash    string
 }
 
-type extract struct {
+type Out struct {
 	Downloadindex int64  `json:"downloadindex"`
 	Project       string `json:"project-id"`
 	Key           string `json:"public-key"`
@@ -39,49 +39,59 @@ func newConfig(projectid string, key string, ip string, hashvalue string) *inser
 	}
 }
 
-func GenerateIndex(projectid string, key string, ip string, hashvalue string) error {
+func Open() (*sql.DB, func(), error) {
 	jsonfile, err := os.Open("url-store.json")
 	if err != nil {
 		log.Errorf("Unable to open json file %s", err.Error())
-		return err
+		return nil, nil, err
 	}
 	url, err := ioutil.ReadAll(jsonfile)
 	if err != nil {
 		log.Errorf("Unable to read data from json file %s", err.Error())
-		return err
+		return nil, nil, err
 	}
 	var str map[string]string
 	err = json.Unmarshal(url, &str)
 	if err != nil {
 		log.Errorf("Failed to Unmarshal url %s", err.Error())
-		return err
+		return nil, nil, err
 	}
 	db, err := sql.Open("postgres", str["url"])
 	if err != nil {
 		log.Errorf("Unable to connect %s", err.Error())
-		return err
+		return nil, nil, err
 	}
-	defer db.Close()
+	return db, func() {
+		db.Close()
+	}, nil
+}
+
+func GenerateIndex(
+	db *sql.DB,
+	projectid string,
+	key string,
+	ip string,
+	hashvalue string,
+) (*Out, error) {
 
 	insertdata := newConfig(projectid, key, ip, hashvalue)
 	timestamp := time.Now().Unix()
 	bcn, err := getBCN(timestamp, db)
 	if err != nil {
 		log.Error("Unable to get bcn %s", err.Error())
-		return err
+		return nil, err
 	}
 	err = createTable(db, bcn)
 	if err != nil {
 		log.Errorf("Unable to create table %s", err.Error())
-		return err
+		return nil, err
 	}
-	jsondata, err := insertion(db, bcn, insertdata)
+	jsonData, err := insertion(db, bcn, insertdata)
 	if err != nil {
 		log.Errorf("Unable to insert data %s", err.Error())
-		return err
+		return nil, err
 	}
-	fmt.Println(jsondata)
-	return nil
+	return jsonData, nil
 }
 
 func getBCN(timestamp int64, db *sql.DB) (int64, error) {
@@ -119,36 +129,29 @@ func createTable(db *sql.DB, bcn int64) error {
 	return nil
 }
 
-func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (string, error) {
+func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (*Out, error) {
 	tablename := fmt.Sprintf("downloads_requests_%#v", bcn)
 	query := fmt.Sprintf(`insert into %s (projectId,publicKey,ip,hash)VALUES($1,$2,$3,$4) returning downloadindex`, tablename)
 	var id string
 	err := db.QueryRow(query, insertdata.Project, insertdata.Key, insertdata.Ip, insertdata.Hash).Scan(&id)
 	if err != nil {
 		log.Errorf("Unable to excute insert query %s", err.Error())
-		return "", err
+		return nil, err
 	}
-
 	dataretrive := fmt.Sprintf(`select * from %s where downloadindex = %s`, tablename, id)
 	rows, err := db.Query(dataretrive)
 	if err != nil {
 		log.Error("Data retrival from select is failed %s", err.Error())
-		return "", err
+		return nil, err
 	}
 	defer rows.Close()
-	var result extract
-	var js []byte
+	result := &Out{}
 	for rows.Next() {
 		err := rows.Scan(&result.Downloadindex, &result.Project, &result.Key, &result.Ip, &result.Hash, &result.Timestamp)
 		if err != nil {
 			log.Errorf("Unable to get resultant tuple from database %s", err.Error())
-			return "", nil
-		}
-		js, err = json.MarshalIndent(result, " ", "\t")
-		if err != nil {
-			log.Errorf("Unable to indent marshal %s", err.Error())
-			return "", err
+			return nil, err
 		}
 	}
-	return string(js), nil
+	return result, nil
 }
