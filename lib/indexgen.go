@@ -42,6 +42,17 @@ func (i *IndexGenerator) open() (*sql.DB, error) {
 	return i.db, nil
 }
 
+func (i *IndexGenerator) McGenrate(
+	key string,
+	ip string,
+	customerId string) (int64, error) {
+	db, err := i.open()
+	if err != nil {
+		return 0, err
+	}
+	return pg.MclientIndexGen(db, key, ip, customerId)
+}
+
 func (i *IndexGenerator) Generate(
 	projectid string,
 	key string,
