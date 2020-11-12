@@ -28,6 +28,12 @@ type Out struct {
 	Timestamp     string `json:"timestamp"`
 }
 
+type mClientInsertdata struct {
+	Pubkey     string
+	Ip         string
+	CustomerId string
+}
+
 var log = logger.Logger("sql/postgres")
 
 func newConfig(projectid string, key string, ip string, hashvalue string) *insertdata {
@@ -36,6 +42,14 @@ func newConfig(projectid string, key string, ip string, hashvalue string) *inser
 		Key:     key,
 		Ip:      ip,
 		Hash:    hashvalue,
+	}
+}
+
+func mCNewConfig(key string, ip string, customerId string) *mClientInsertdata {
+	return &mClientInsertdata{
+		Pubkey:     key,
+		Ip:         ip,
+		CustomerId: customerId,
 	}
 }
 
@@ -92,6 +106,62 @@ func GenerateIndex(
 		return nil, err
 	}
 	return jsonData, nil
+}
+
+func MclientIndexGen(
+	db *sql.DB,
+	pubKey string,
+	ip string,
+	customerId string,
+) (int64, error) {
+	if customerId == "" {
+		customerId = "12345"
+	}
+	inData := mCNewConfig(pubKey, ip, customerId)
+	err := mcCreateTable(db)
+	if err != nil {
+		log.Errorf("Failed to create medium client %s", err.Error())
+		return 0, err
+	}
+	newIndex, err := mClientInsertion(db, inData)
+	if err != nil {
+		log.Errorf("Failed medium-clinet insert data into table %s", err.Error())
+		return 0, err
+	}
+	return newIndex, nil
+}
+
+func mcCreateTable(db *sql.DB) error {
+	tablename := "downloads_requests_midClient"
+	query := fmt.Sprintf(`create table if not exists %s
+	(downloadindex serial,
+	 publickey varchar(200),
+	 ip varchar(45),
+	 customerId varchar(45)
+	 )`, tablename)
+	_, err := db.Query(query)
+	if err != nil {
+		log.Errorf("Unbale to create table %s", err.Error())
+		return err
+	}
+	return nil
+}
+
+func mClientInsertion(db *sql.DB, data *mClientInsertdata) (int64, error) {
+	tablename := "downloads_requests_midClient"
+	query := fmt.Sprintf(`
+		insert into %s (
+		publicKey,ip,
+		customerId)
+		VALUES($1,$2,$3)
+		returning downloadindex`, tablename)
+	var id int64
+	err := db.QueryRow(query, data.Pubkey, data.Ip, data.CustomerId).Scan(&id)
+	if err != nil {
+		log.Errorf("Failed to insert data into table %s", err.Error())
+		return 0, err
+	}
+	return id, nil
 }
 
 func getBCN(timestamp int64, db *sql.DB) (int64, error) {
