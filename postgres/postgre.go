@@ -3,6 +3,7 @@ package postgres
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -115,7 +116,7 @@ func MclientIndexGen(
 	customerId string,
 ) (int64, error) {
 	if customerId == "" {
-		customerId = "12345"
+		return 0, errors.New("Customer id is found empty")
 	}
 	inData := mCNewConfig(pubKey, ip, customerId)
 	err := mcCreateTable(db)
@@ -132,9 +133,9 @@ func MclientIndexGen(
 }
 
 func mcCreateTable(db *sql.DB) error {
-	tablename := "downloads_requests_midClient"
+	tablename := "midClients"
 	query := fmt.Sprintf(`create table if not exists %s
-	(downloadindex serial,
+	(mcindex serial,
 	 publickey varchar(200),
 	 ip varchar(45),
 	 customerId varchar(45)
@@ -148,7 +149,7 @@ func mcCreateTable(db *sql.DB) error {
 }
 
 func mClientInsertion(db *sql.DB, data *mClientInsertdata) (int64, error) {
-	tablename := "downloads_requests_midClient"
+	tablename := "midClients"
 	query := fmt.Sprintf(`
 		insert into %s (
 		publicKey,ip,
