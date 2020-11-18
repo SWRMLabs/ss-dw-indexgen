@@ -155,7 +155,7 @@ func mClientInsertion(db *sql.DB, data *mClientInsertdata) (int64, error) {
 		publicKey,ip,
 		customerId)
 		VALUES($1,$2,$3)
-		returning downloadindex`, tablename)
+		returning mcindex`, tablename)
 	var id int64
 	err := db.QueryRow(query, data.Pubkey, data.Ip, data.CustomerId).Scan(&id)
 	if err != nil {
