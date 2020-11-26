@@ -192,11 +192,12 @@ func createTable(db *sql.DB, bcn int64) error {
 	 ip varchar(45),
 	 hash varchar(200),
 	 timestamp timestamp default current_timestamp)`, tablename)
-	_, err := db.Query(query)
+	r, err := db.Query(query)
 	if err != nil {
 		log.Errorf("Unbale to create table %s", err.Error())
 		return err
 	}
+	r.Close()
 	return nil
 }
 

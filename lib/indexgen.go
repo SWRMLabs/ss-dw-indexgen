@@ -3,8 +3,12 @@ package lib
 import (
 	"database/sql"
 	pg "github.com/StreamSpace/ss-dw-indexgen/postgres"
+	logger "github.com/ipfs/go-log/v2"
 	"sync"
+	"time"
 )
+
+var log = logger.Logger("indexgen/lib")
 
 type IndexGenerator struct {
 	lk    sync.Mutex
@@ -34,15 +38,25 @@ func (i *IndexGenerator) open() (*sql.DB, error) {
 	}
 	// If DB was not opened or its not usable, create a new connection
 	if i.db == nil || err != nil {
+		if err != nil {
+			log.Error("Unable to ping closing previous DB", err.Error())
+			i.db.Close()
+		}
+		log.Info("Opening new DB")
 		i.db, err = sql.Open("postgres", i.pgUrl)
 		if err != nil {
 			return nil, err
 		}
+		i.db.SetMaxOpenConns(5)
+		i.db.SetMaxIdleConns(5)
+		i.db.SetConnMaxLifetime(5*time.Minute)
+	} else {
+		log.Info("Using existing DB")
 	}
 	return i.db, nil
 }
 
-func (i *IndexGenerator) McGenrate(
+func (i *IndexGenerator) McGenerate(
 	key string,
 	ip string,
 	customerId string) (int64, error) {
@@ -73,5 +87,6 @@ func (i *IndexGenerator) Close() error {
 	if i.db != nil {
 		return i.db.Close()
 	}
+	log.Debug("Closing DB")
 	return nil
 }
