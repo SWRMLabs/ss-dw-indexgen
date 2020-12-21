@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	logger "github.com/ipfs/go-log/v2"
+	"github.com/lib/pq"
+	"github.com/robfig/cron/v3"
 	"io/ioutil"
 	"os"
 	"time"
-
-	logger "github.com/ipfs/go-log/v2"
-	_ "github.com/lib/pq"
 )
+
+var postgresError string = "undefined_table"
 
 type insertdata struct {
 	Project string
@@ -33,6 +35,11 @@ type mClientInsertdata struct {
 	Pubkey     string
 	Ip         string
 	CustomerId string
+}
+
+type pgProcedure struct {
+	db  *sql.DB
+	bcn int64
 }
 
 var log = logger.Logger("sql/postgres")
@@ -88,7 +95,6 @@ func GenerateIndex(
 	ip string,
 	hashvalue string,
 ) (*Out, error) {
-
 	insertdata := newConfig(projectid, key, ip, hashvalue)
 	timestamp := time.Now().Unix()
 	bcn, err := getBCN(timestamp, db)
@@ -96,17 +102,39 @@ func GenerateIndex(
 		log.Error("Unable to get bcn %s", err.Error())
 		return nil, err
 	}
-	err = createTable(db, bcn)
-	if err != nil {
-		log.Errorf("Unable to create table %s", err.Error())
-		return nil, err
+	pgPro := &pgProcedure{
+		db:  db,
+		bcn: bcn,
 	}
+	newPostgresProcedure(pgPro)
 	jsonData, err := insertion(db, bcn, insertdata)
 	if err != nil {
 		log.Errorf("Unable to insert data %s", err.Error())
 		return nil, err
 	}
 	return jsonData, nil
+}
+
+func (pgP *pgProcedure) Run() {
+	tablename := fmt.Sprintf("downloads_requests_%#v", pgP.bcn)
+	query := fmt.Sprintf(`create table if not exists %s
+	(downloadindex serial,
+	 projectid varchar(50),
+	 publickey varchar(200),
+	 ip varchar(45),
+	 hash varchar(200),
+	 timestamp timestamp default current_timestamp)`, tablename)
+	_, err := pgP.db.Query(query)
+	if err != nil {
+		log.Errorf("Unbale to create table %s", err.Error())
+		return
+	}
+}
+
+func newPostgresProcedure(pg *pgProcedure) {
+	c := cron.New()
+	c.AddJob("5 * * * *", pg)
+	c.Start()
 }
 
 func MclientIndexGen(
@@ -201,14 +229,31 @@ func createTable(db *sql.DB, bcn int64) error {
 	return nil
 }
 
-func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (*Out, error) {
+func subInsertion(db *sql.DB, bcn int64, insertdata *insertdata) (string, error) {
 	tablename := fmt.Sprintf("downloads_requests_%#v", bcn)
 	query := fmt.Sprintf(`insert into %s (projectId,publicKey,ip,hash)VALUES($1,$2,$3,$4) returning downloadindex`, tablename)
 	var id string
 	err := db.QueryRow(query, insertdata.Project, insertdata.Key, insertdata.Ip, insertdata.Hash).Scan(&id)
 	if err != nil {
-		log.Errorf("Unable to excute insert query %s", err.Error())
-		return nil, err
+		return "", err
+	}
+	return id, nil
+}
+
+func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (*Out, error) {
+	tablename := fmt.Sprintf("downloads_requests_%#v", bcn)
+	id, err := subInsertion(db, bcn, insertdata)
+	if err != nil {
+		if err, ok := err.(*pq.Error); ok {
+			if err.Code.Name() == postgresError {
+				createTable(db, bcn)
+				id, _ = subInsertion(db, bcn, insertdata)
+			} else {
+				log.Errorf("Unable to excute insert query %s", err.Error())
+				return nil, err
+			}
+
+		}
 	}
 	dataretrive := fmt.Sprintf(`select * from %s where downloadindex = %s`, tablename, id)
 	rows, err := db.Query(dataretrive)
