@@ -7,13 +7,13 @@ import (
 	"fmt"
 	logger "github.com/ipfs/go-log/v2"
 	"github.com/lib/pq"
-	"github.com/robfig/cron/v3"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"time"
 )
 
-var postgresError string = "undefined_table"
+var tableDoesNotExist string = "undefined_table"
 
 type insertdata struct {
 	Project string
@@ -28,18 +28,12 @@ type Out struct {
 	Key           string `json:"public-key"`
 	Ip            string `json:"ip"`
 	Hash          string `json:"hash"`
-	Timestamp     string `json:"timestamp"`
 }
 
 type mClientInsertdata struct {
 	Pubkey     string
 	Ip         string
 	CustomerId string
-}
-
-type pgProcedure struct {
-	db  *sql.DB
-	bcn int64
 }
 
 var log = logger.Logger("sql/postgres")
@@ -102,39 +96,12 @@ func GenerateIndex(
 		log.Error("Unable to get bcn %s", err.Error())
 		return nil, err
 	}
-	pgPro := &pgProcedure{
-		db:  db,
-		bcn: bcn,
-	}
-	newPostgresProcedure(pgPro)
 	jsonData, err := insertion(db, bcn, insertdata)
 	if err != nil {
 		log.Errorf("Unable to insert data %s", err.Error())
 		return nil, err
 	}
 	return jsonData, nil
-}
-
-func (pgP *pgProcedure) Run() {
-	tablename := fmt.Sprintf("downloads_requests_%#v", pgP.bcn)
-	query := fmt.Sprintf(`create table if not exists %s
-	(downloadindex serial,
-	 projectid varchar(50),
-	 publickey varchar(200),
-	 ip varchar(45),
-	 hash varchar(200),
-	 timestamp timestamp default current_timestamp)`, tablename)
-	_, err := pgP.db.Query(query)
-	if err != nil {
-		log.Errorf("Unbale to create table %s", err.Error())
-		return
-	}
-}
-
-func newPostgresProcedure(pg *pgProcedure) {
-	c := cron.New()
-	c.AddJob("5 * * * *", pg)
-	c.Start()
 }
 
 func MclientIndexGen(
@@ -241,13 +208,20 @@ func subInsertion(db *sql.DB, bcn int64, insertdata *insertdata) (string, error)
 }
 
 func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (*Out, error) {
-	tablename := fmt.Sprintf("downloads_requests_%#v", bcn)
 	id, err := subInsertion(db, bcn, insertdata)
 	if err != nil {
 		if err, ok := err.(*pq.Error); ok {
-			if err.Code.Name() == postgresError {
-				createTable(db, bcn)
-				id, _ = subInsertion(db, bcn, insertdata)
+			if err.Code.Name() == tableDoesNotExist {
+				err := createTable(db, bcn)
+				if err != nil {
+					log.Errorf("Failed to create table", err.Error())
+					return nil, err
+				}
+				id, err = subInsertion(db, bcn, insertdata)
+				if err != nil {
+					log.Errorf("Unable to execute insert query after manually table creation %s", err.Error())
+					return nil, err
+				}
 			} else {
 				log.Errorf("Unable to excute insert query %s", err.Error())
 				return nil, err
@@ -255,20 +229,17 @@ func insertion(db *sql.DB, bcn int64, insertdata *insertdata) (*Out, error) {
 
 		}
 	}
-	dataretrive := fmt.Sprintf(`select * from %s where downloadindex = %s`, tablename, id)
-	rows, err := db.Query(dataretrive)
+	indx, err := strconv.ParseInt(id, 10, 64)
 	if err != nil {
-		log.Error("Data retrival from select is failed %s", err.Error())
+		log.Errorf("Failed to convert string to in64 %s", err.Error())
 		return nil, err
 	}
-	defer rows.Close()
-	result := &Out{}
-	for rows.Next() {
-		err := rows.Scan(&result.Downloadindex, &result.Project, &result.Key, &result.Ip, &result.Hash, &result.Timestamp)
-		if err != nil {
-			log.Errorf("Unable to get resultant tuple from database %s", err.Error())
-			return nil, err
-		}
+	result := &Out{
+		Downloadindex: indx,
+		Project:       insertdata.Project,
+		Ip:            insertdata.Ip,
+		Key:           insertdata.Key,
+		Hash:          insertdata.Hash,
 	}
 	return result, nil
 }
