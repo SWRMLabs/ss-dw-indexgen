@@ -2,7 +2,7 @@ package lib
 
 import (
 	"database/sql"
-	pg "github.com/StreamSpace/ss-dw-indexgen/postgres"
+	pg "github.com/SWRMLabs/ss-dw-indexgen/postgres"
 	logger "github.com/ipfs/go-log/v2"
 	"sync"
 	"time"

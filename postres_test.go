@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/StreamSpace/ss-dw-indexgen/lib"
+	"github.com/SWRMLabs/ss-dw-indexgen/lib"
 	"testing"
 )
 

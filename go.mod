@@ -1,4 +1,4 @@
-module github.com/StreamSpace/ss-dw-indexgen
+module github.com/SWRMLabs/ss-dw-indexgen
 
 go 1.14
 
